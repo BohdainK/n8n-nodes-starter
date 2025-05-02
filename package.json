@@ -1,19 +1,19 @@
 {
-  "name": "n8n-nodes-<...>",
+  "name": "n8n-nodes-creatio",
   "version": "0.1.0",
-  "description": "",
+  "description": "n8n node for Creatio integration",
   "keywords": [
     "n8n-community-node-package"
   ],
   "license": "MIT",
-  "homepage": "",
+  "homepage": "https://github.com/bohdaink/n8n-nodes-creatio",
   "author": {
-    "name": "",
-    "email": ""
+    "name": "example",
+    "email": "example@example.com"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/<...>/n8n-nodes-<...>.git"
+    "url": "https://github.com/bohdaink/n8n-nodes-creatio.git"
   },
   "engines": {
     "node": ">=18.10",
@@ -36,12 +36,10 @@
   "n8n": {
     "n8nNodesApiVersion": 1,
     "credentials": [
-      "dist/credentials/ExampleCredentialsApi.credentials.js",
-      "dist/credentials/HttpBinApi.credentials.js"
+      "dist/credentials/CreatioApi.credentials.js"
     ],
     "nodes": [
-      "dist/nodes/ExampleNode/ExampleNode.node.js",
-      "dist/nodes/HttpBin/HttpBin.node.js"
+      "dist/nodes/Creatio/Creatio.node.js"
     ]
   },
   "devDependencies": {
@@ -49,10 +47,13 @@
     "eslint": "^8.56.0",
     "eslint-plugin-n8n-nodes-base": "^1.16.1",
     "gulp": "^4.0.2",
-    "prettier": "^3.3.2",
+    "prettier": "^3.5.3",
     "typescript": "^5.5.3"
   },
   "peerDependencies": {
     "n8n-workflow": "*"
+  },
+  "dependencies": {
+    "clean": "^4.0.2"
   }
 }

@@ -1,0 +1,27 @@
+
+nodes/Creatio/Creatio.node.ts:15:3 - error TS2322: Type '"main"[]' is not assignable to type '(NodeConnectionType | INodeInputConfiguration)[] | `={{${string}}}`'.
+  Type '"main"[]' is not assignable to type '(NodeConnectionType | INodeInputConfiguration)[]'.
+    Type '"main"' is not assignable to type 'NodeConnectionType | INodeInputConfiguration'.
+
+15   inputs: ['main'],
+     ~~~~~~
+
+  node_modules/n8n-workflow/dist/Interfaces.d.ts:1267:5
+    1267     inputs: Array<NodeConnectionType | INodeInputConfiguration> | ExpressionString;
+             ~~~~~~
+    The expected type comes from property 'inputs' which is declared here on type 'INodeTypeDescription'
+
+nodes/Creatio/Creatio.node.ts:16:3 - error TS2322: Type '"main"[]' is not assignable to type '`={{${string}}}` | (NodeConnectionType | INodeOutputConfiguration)[]'.
+  Type '"main"[]' is not assignable to type '(NodeConnectionType | INodeOutputConfiguration)[]'.
+    Type '"main"' is not assignable to type 'NodeConnectionType | INodeOutputConfiguration'.
+
+16   outputs: ['main'],
+     ~~~~~~~
+
+  node_modules/n8n-workflow/dist/Interfaces.d.ts:1270:5
+    1270     outputs: Array<NodeConnectionType | INodeOutputConfiguration> | ExpressionString;
+             ~~~~~~~
+    The expected type comes from property 'outputs' which is declared here on type 'INodeTypeDescription'
+
+
+Found 2 errors in the same file, starting at: nodes/Creatio/Creatio.node.ts:15
