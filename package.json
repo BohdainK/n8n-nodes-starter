@@ -54,6 +54,6 @@
     "n8n-workflow": "*"
   },
   "dependencies": {
-    "clean": "^4.0.2"
+    "sqlite3": "^5.1.7"
   }
 }
