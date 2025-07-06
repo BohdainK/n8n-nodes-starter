@@ -1,4 +1,9 @@
-import { INodeType, INodeTypeDescription, IExecuteFunctions, NodeConnectionType } from 'n8n-workflow';
+import {
+	INodeType,
+	INodeTypeDescription,
+	IExecuteFunctions,
+	NodeConnectionType,
+} from 'n8n-workflow';
 
 export class Creatio implements INodeType {
 	description: INodeTypeDescription = {
@@ -20,6 +25,7 @@ export class Creatio implements INodeType {
 				required: true,
 			},
 		],
+		usableAsTool: true,
 		properties: [
 			{
 				displayName: 'Operation',
@@ -108,9 +114,9 @@ export class Creatio implements INodeType {
 				method: 'POST',
 				url: `${credentials.creatioUrl}/ServiceModel/AuthService.svc/Login`,
 				headers: {
-					'Accept': 'application/json',
+					Accept: 'application/json',
 					'Content-Type': 'application/json',
-					'ForceUseSession': 'true',
+					ForceUseSession: 'true',
 				},
 				body: {
 					UserName: credentials.username,
@@ -122,14 +128,12 @@ export class Creatio implements INodeType {
 			const cookies = authResponse.headers['set-cookie'];
 			const authCookie = cookies.find((c: string) => c.startsWith('.ASPXAUTH='));
 			const csrfCookie = cookies.find((c: string) => c.startsWith('BPMCSRF='));
-			const cookieHeader = [
-				authCookie?.split(';')[0],
-				csrfCookie?.split(';')[0]
-			].filter(Boolean).join('; ');
+			const cookieHeader = [authCookie?.split(';')[0], csrfCookie?.split(';')[0]]
+				.filter(Boolean)
+				.join('; ');
 
 			let response;
 			switch (operation) {
-
 				case 'GET': {
 					const subpath = this.getNodeParameter('subpath', i) as string;
 					const additionalFields = this.getNodeParameter('additionalFields', i) as {
@@ -166,10 +170,10 @@ export class Creatio implements INodeType {
 						method: 'GET',
 						url,
 						headers: {
-							'Accept': 'application/json',
+							Accept: 'application/json',
 							'Content-Type': 'application/json',
-							'Cookie': cookieHeader,
-							'BPMCSRF': csrfCookie?.split('=')[1] || '',
+							Cookie: cookieHeader,
+							BPMCSRF: csrfCookie?.split('=')[1] || '',
 						},
 						json: true,
 					});
@@ -179,7 +183,6 @@ export class Creatio implements INodeType {
 				case 'PUT': {
 					//const subpath = this.getNodeParameter('subpath', i) as string;
 				}
-
 			}
 
 			returnData.push(response);

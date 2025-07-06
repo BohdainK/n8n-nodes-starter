@@ -1,46 +1,67 @@
-![Banner image](https://user-images.githubusercontent.com/10284570/173569848-c624317f-42b1-45a6-ab09-f0ea3c247648.png)
+# n8n Community Nodes Documentation
 
-# n8n-nodes-starter
+[![Publish to npm](https://github.com/BohdainK/n8n-node-starter/actions/workflows/npm-publish.yml/badge.svg)](https://github.com/BohdainK/n8n-node-starter/actions/workflows/npm-publish.yml) [npm source](https://www.npmjs.com/package/n8n-nodes-starter) 
 
-This repo contains example nodes to help you get started building your own custom integrations for [n8n](n8n.io). It includes the node linter and other dependencies.
+This document covers three n8n community nodes that integrate with different platforms: Notion, Google Slides, and Midjourney. [n8n](https://n8n.io/) is a [fair-code licensed](https://docs.n8n.io/reference/license/) workflow automation platform.
 
-To make your custom node available to the community, you must create it as an npm package, and [submit it to the npm registry](https://docs.npmjs.com/packages-and-modules/contributing-packages-to-the-registry).
+## Table of Contents
 
-## Prerequisites
+- [Installation](#installation)
+- [Sparkwise Node](#creatio-node)
+- [Resources](#resources)
 
-You need the following installed on your development machine:
 
-* [git](https://git-scm.com/downloads)
-* Node.js and pnpm. Minimum version Node 18. You can find instructions on how to install both using nvm (Node Version Manager) for Linux, Mac, and WSL [here](https://github.com/nvm-sh/nvm). For Windows users, refer to Microsoft's guide to [Install NodeJS on Windows](https://docs.microsoft.com/en-us/windows/dev-environment/javascript/nodejs-on-windows).
-* Install n8n with:
-  ```
-  pnpm install n8n -g
-  ```
-* Recommended: follow n8n's guide to [set up your development environment](https://docs.n8n.io/integrations/creating-nodes/build/node-development-environment/).
+<!-- to finish -->
+<!-- 
 
-## Using this starter
+to create good documentation in cursor add node attributes + readme in context then use this prompt
 
-These are the basic steps for working with the starter. For detailed guidance on creating and publishing nodes, refer to the [documentation](https://docs.n8n.io/integrations/creating-nodes/).
+```
+Please adapt the readme to better match the tasks this node can perform. I want to make my readme more digestible for people who use the project.
 
-1. [Generate a new repository](https://github.com/n8n-io/n8n-nodes-starter/generate) from this template repository.
-2. Clone your new repo:
-   ```
-   git clone https://github.com/<your organization>/<your-repo-name>.git
-   ```
-3. Run `pnpm i` to install dependencies.
-4. Open the project in your editor.
-5. Browse the examples in `/nodes` and `/credentials`. Modify the examples, or replace them with your own nodes.
-6. Update the `package.json` to match your details.
-7. Run `pnpm lint` to check for errors or `pnpm lintfix` to automatically fix errors when possible.
-8. Test your node locally. Refer to [Run your node locally](https://docs.n8n.io/integrations/creating-nodes/test/run-node-locally/) for guidance.
-9. Replace this README with documentation for your node. Use the [README_TEMPLATE](README_TEMPLATE.md) to get started.
-10. Update the LICENSE file to use your details.
-11. [Publish](https://docs.npmjs.com/packages-and-modules/contributing-packages-to-the-registry) your package to npm.
+Give me only the snippets to copy for the correct section + update the menu.
+```
 
-## More information
+-->
 
-Refer to our [documentation on creating nodes](https://docs.n8n.io/integrations/creating-nodes/) for detailed information on building your own nodes.
+---
 
-## License
+## Installation
 
-[MIT](https://github.com/n8n-io/n8n-nodes-starter/blob/master/LICENSE.md)
+Follow the [installation guide](https://docs.n8n.io/integrations/community-nodes/installation/) in the n8n community nodes documentation.
+
+---
+
+## Creatio Node
+
+This node allows you connect N8N to Creatio, the popular Agentic Nocode Platform with an excellent CRM. 
+
+### Features
+
+- Create, Read, Update & Delete data on entities in Creatio
+
+### Input
+
+The node accepts:
+- Storing credentials
+- Creatio Tenant selection
+- Creatio Entity selection
+- Creatio model method execution body parameters
+
+### Output
+
+- Output from Creatio
+
+### Example Usage
+
+Perfect for:
+- Adding Leads
+- Reading data for AI Agents
+
+### Authentication
+
+Required
+
+## Resources
+
+- [n8n community nodes documentation](https://docs.n8n.io/integrations/community-nodes/)
