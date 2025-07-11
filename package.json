@@ -34,10 +34,12 @@
   "n8n": {
     "n8nNodesApiVersion": 1,
     "credentials": [
-      "dist/credentials/CreatioApi.credentials.js"
+      "dist/credentials/CreatioApi.credentials.js",
+      "dist/credentials/CreatioV2Api.credentials.js"
     ],
     "nodes": [
-      "dist/nodes/Creatio/Creatio.node.js"
+      "dist/nodes/Creatio/Creatio.node.js",
+      "dist/nodes/CreatioV2/Creatiov2.node.js"
     ]
   },
   "devDependencies": {
