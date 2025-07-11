@@ -8,56 +8,71 @@ import {
 } from 'n8n-workflow';
 
 export class Creatiov2 implements INodeType {
+	// Extracted authentication helper as a static method
+	static async authenticateAndGetCookies(context: ILoadOptionsFunctions | IExecuteFunctions, credentials: any) {
+		let creatioUrl = credentials.creatioUrl as string;
+		const username = credentials.username as string;
+		const password = credentials.password as string;
+		creatioUrl = creatioUrl.trim().replace(/\/$/, '');
+		let authResponse;
+		try {
+			authResponse = await context.helpers.request({
+				resolveWithFullResponse: true,
+				method: 'POST',
+				url: `${creatioUrl}/ServiceModel/AuthService.svc/Login`,
+				headers: {
+					Accept: 'application/json',
+					'Content-Type': 'application/json',
+					ForceUseSession: 'true',
+				},
+				body: {
+					UserName: username,
+					UserPassword: password,
+				},
+				json: true,
+				maxRedirects: 5,
+			});
+		} catch (error: any) {
+			console.error('Creatio login failed (authenticateAndGetCookies):', {
+				status: error.response?.status,
+				headers: error.response?.headers,
+				body: error.response?.body,
+			});
+			throw new NodeOperationError(
+				context.getNode(),
+				`Failed to authenticate with Creatio: ${error.message}`,
+			);
+		}
+		const cookies = authResponse.headers['set-cookie'];
+		const authCookie = cookies.find((c: string) => c.startsWith('.ASPXAUTH='));
+		const csrfCookie = cookies.find((c: string) => c.startsWith('BPMCSRF='));
+		const bpmLoader = cookies.find((c: string) => c.startsWith('BPMLOADER='));
+		const sessionIdCookie = cookies.find((c: string) => c.startsWith('BPMSESSIONID='));
+		const userType = 'UserType=General';
+		return {
+			cookies,
+			authCookie,
+			csrfCookie,
+			bpmLoader,
+			sessionIdCookie,
+			userType,
+			creatioUrl,
+		};
+	}
 	methods = {
 		loadOptions: {
 			async getODataEntities(this: ILoadOptionsFunctions) {
 				try {
 					const credentials = await this.getCredentials('creatiov2Api');
-					let creatioUrl = credentials.creatioUrl as string;
-					const username = credentials.username as string;
-					const password = credentials.password as string;
-
-					creatioUrl = creatioUrl.trim().replace(/\/$/, '');
-
-					// Authenticatie ------------------------------------------------------------------------- samenvoegen met auth code blokken!
-					let authResponse;
-					try {
-						authResponse = await this.helpers.request({
-							resolveWithFullResponse: true,
-							method: 'POST',
-							url: `${creatioUrl}/ServiceModel/AuthService.svc/Login`,
-							headers: {
-								Accept: 'application/json',
-								'Content-Type': 'application/json',
-								ForceUseSession: 'true',
-							},
-							body: {
-								UserName: username,
-								UserPassword: password,
-							},
-							json: true,
-							maxRedirects: 5,
-						});
-					} catch (error: any) {
-						console.error('Creatio login failed (getODataEntities):', {
-							status: error.response?.status,
-							headers: error.response?.headers,
-							body: error.response?.body,
-						});
-						throw new NodeOperationError(
-							this.getNode(),
-							`Failed to authenticate with Creatio: ${error.message}`,
-						);
-					}
-
-					const cookies = authResponse.headers['set-cookie'];
-					const authCookie = cookies.find((c: string) => c.startsWith('.ASPXAUTH='));
-					const csrfCookie = cookies.find((c: string) => c.startsWith('BPMCSRF='));
+					const {
+						authCookie,
+						csrfCookie,
+						creatioUrl,
+					} = await Creatiov2.authenticateAndGetCookies(this, credentials);
 					const cookieHeaderVal = [authCookie?.split(';')[0], csrfCookie?.split(';')[0]]
 						.filter(Boolean)
 						.join('; ');
 					const csrfTokenVal = csrfCookie?.split('=')[1] || '';
-
 					const metadataXml = await this.helpers.request({
 						method: 'GET',
 						url: `${creatioUrl}/0/odata/$metadata`,
@@ -67,14 +82,12 @@ export class Creatiov2 implements INodeType {
 							BPMCSRF: csrfTokenVal,
 						},
 					});
-
 					const entityNames: string[] = [];
 					const entityTypeRegex = /<EntityType Name="([^"]+)"/g;
 					let match;
 					while ((match = entityTypeRegex.exec(metadataXml)) !== null) {
 						entityNames.push(match[1]);
 					}
-
 					return entityNames.map((name) => ({
 						name,
 						value: name,
@@ -89,56 +102,19 @@ export class Creatiov2 implements INodeType {
 			async getODataEntityFields(this: ILoadOptionsFunctions) {
 				try {
 					const credentials = await this.getCredentials('creatiov2Api');
-					let creatioUrl = credentials.creatioUrl as string;
-					const username = credentials.username as string;
-					const password = credentials.password as string;
-
-					creatioUrl = creatioUrl.trim().replace(/\/$/, '');
-
-					// Authenticatie ------------------------------------------------------------------------- samenvoegen met auth code blokken!
-					let authResponse;
-					try {
-						authResponse = await this.helpers.request({
-							resolveWithFullResponse: true,
-							method: 'POST',
-							url: `${creatioUrl}/ServiceModel/AuthService.svc/Login`,
-							headers: {
-								Accept: 'application/json',
-								'Content-Type': 'application/json',
-								ForceUseSession: 'true',
-							},
-							body: {
-								UserName: username,
-								UserPassword: password,
-							},
-							json: true,
-							maxRedirects: 5,
-						});
-					} catch (error: any) {
-						console.error('Creatio login failed (getODataEntityFields):', {
-							status: error.response?.status,
-							headers: error.response?.headers,
-							body: error.response?.body,
-						});
-						throw new NodeOperationError(
-							this.getNode(),
-							`Failed to authenticate with Creatio: ${error.message}`,
-						);
-					}
-
-					const cookies = authResponse.headers['set-cookie'];
-					const authCookie = cookies.find((c: string) => c.startsWith('.ASPXAUTH='));
-					const csrfCookie = cookies.find((c: string) => c.startsWith('BPMCSRF='));
+					const {
+						authCookie,
+						csrfCookie,
+						creatioUrl,
+					} = await Creatiov2.authenticateAndGetCookies(this, credentials);
 					const cookieHeader = [authCookie?.split(';')[0], csrfCookie?.split(';')[0]]
 						.filter(Boolean)
 						.join('; ');
 					const csrfToken = csrfCookie?.split('=')[1] || '';
-
 					const subpath = this.getCurrentNodeParameter('subpath') as string;
 					if (!subpath) {
 						return [];
 					}
-
 					const metadataXml = await this.helpers.request({
 						method: 'GET',
 						url: `${creatioUrl}/0/odata/$metadata`,
@@ -148,21 +124,18 @@ export class Creatiov2 implements INodeType {
 							BPMCSRF: csrfToken,
 						},
 					});
-
 					const entityRegex = new RegExp(`<EntityType Name="${subpath}"[\\s\\S]*?<\\/EntityType>`, 'g');
 					const entityMatch = entityRegex.exec(metadataXml);
 					if (!entityMatch) {
 						return [];
 					}
 					const entityXml = entityMatch[0];
-
 					const propertyRegex = /<Property Name="([^"]+)"/g;
 					const fields: { name: string; value: string }[] = [];
 					let match;
 					while ((match = propertyRegex.exec(entityXml)) !== null) {
 						fields.push({ name: match[1], value: match[1] });
 					}
-
 					return fields;
 				} catch (error: any) {
 					throw new NodeOperationError(
@@ -320,54 +293,17 @@ export class Creatiov2 implements INodeType {
 	async execute(this: IExecuteFunctions) {
 		const items = this.getInputData();
 		const returnData = [];
-
-
 		for (let i = 0; i < items.length; i++) {
 			const credentials = await this.getCredentials('creatiov2Api');
 			const operation = this.getNodeParameter('operation', i) as string;
-
-			// Authenticatie ------------------------------------------------------------------------- samenvoegen met auth code blokken!
-			let authResponse;
-			try {
-				authResponse = await this.helpers.request({
-					resolveWithFullResponse: true,
-					method: 'POST',
-					url: `${credentials.creatioUrl}/ServiceModel/AuthService.svc/Login`,
-					headers: {
-						Accept: 'application/json',
-						'Content-Type': 'application/json',
-						ForceUseSession: 'true',
-					},
-					body: {
-						UserName: credentials.username,
-						UserPassword: credentials.password,
-					},
-					json: true,
-					maxRedirects: 5,
-				});
-			} catch (error: any) {
-				console.error('Creatio login failed (execute):', {
-					status: error.response?.status,
-					headers: error.response?.headers,
-					body: error.response?.body,
-				});
-				throw new NodeOperationError(
-					this.getNode(),
-					`Failed to authenticate with Creatio: ${error.message}`,
-				);
-			}
-
-			const cookies = authResponse.headers['set-cookie'];
-
-			const bpmLoader = cookies.find((c: string) => c.startsWith('BPMLOADER='));
-			const authCookie = cookies.find((c: string) => c.startsWith('.ASPXAUTH='));
-			const csrfCookie = cookies.find((c: string) => c.startsWith('BPMCSRF='));
-			const userType = 'UserType=General';
-			const cookieHeader = [authCookie?.split(';')[0], csrfCookie?.split(';')[0], bpmLoader?.split(';')[0], userType]
-				.filter(Boolean)
-				.join('; ');
-			const csrfToken = csrfCookie?.split('=')[1];
-
+			const {
+				authCookie,
+				csrfCookie,
+				bpmLoader,
+				sessionIdCookie,
+				userType,
+				creatioUrl,
+			} = await Creatiov2.authenticateAndGetCookies(this, credentials);
 			let response;
 			switch (operation) {
 				case 'GET': {
@@ -376,10 +312,8 @@ export class Creatiov2 implements INodeType {
 					const top = this.getNodeParameter('top', i) as number;
 					const filter = this.getNodeParameter('filter', i) as string;
 					const expand = this.getNodeParameter('expand', i) as string;
-
-					let url = `${credentials.creatioUrl}/0/odata/${subpath}`;
+					let url = `${creatioUrl}/0/odata/${subpath}`;
 					const queryParams: string[] = [];
-
 					if (select && select.length > 0) {
 						queryParams.push(`$select=${encodeURIComponent(select.join(','))}`);
 					}
@@ -395,7 +329,10 @@ export class Creatiov2 implements INodeType {
 					if (queryParams.length > 0) {
 						url += `?${queryParams.join('&')}`;
 					}
-
+					const cookieHeader = [authCookie?.split(';')[0], csrfCookie?.split(';')[0], bpmLoader?.split(';')[0], userType]
+						.filter(Boolean)
+						.join('; ');
+					const csrfToken = csrfCookie?.split('=')[1];
 					response = await this.helpers.request({
 						method: 'GET',
 						url,
@@ -410,25 +347,17 @@ export class Creatiov2 implements INodeType {
 					break;
 				}
 				case 'POST': {
-					const sessionIdCookie = cookies.find((c: string) => c.startsWith('BPMSESSIONID='));
-					const authCookie = cookies.find((c: string) => c.startsWith('.ASPXAUTH='));
-					const csrfCookie = cookies.find((c: string) => c.startsWith('BPMCSRF='));
-					const bpmLoaderCookie = cookies.find((c: string) => c.startsWith('BPMLOADER='));
-					const userType = 'UserType=General';
-
 					const cookieHeader = [
 						sessionIdCookie?.split(';')[0],
 						authCookie?.split(';')[0],
 						csrfCookie?.split(';')[0],
-						bpmLoaderCookie?.split(';')[0],
+						bpmLoader?.split(';')[0],
 						userType
 					].filter(Boolean).join('; ');
 					const csrfToken = csrfCookie?.split('=')[1]?.split(';')[0] || '';
-
 					const subpath = this.getNodeParameter('subpath', i) as string;
 					const requestBody = this.getNodeParameter('body', i) as object;
-					let url = `${credentials.creatioUrl}/0/odata/${subpath}`;
-
+					let url = `${creatioUrl}/0/odata/${subpath}`;
 					response = await this.helpers.request({
 						method: 'POST',
 						url,
@@ -444,29 +373,21 @@ export class Creatiov2 implements INodeType {
 					break;
 				}
 				case 'PUT': {
-					const sessionIdCookie = cookies.find((c: string) => c.startsWith('BPMSESSIONID='));
-					const authCookie = cookies.find((c: string) => c.startsWith('.ASPXAUTH='));
-					const csrfCookie = cookies.find((c: string) => c.startsWith('BPMCSRF='));
-					const bpmLoaderCookie = cookies.find((c: string) => c.startsWith('BPMLOADER='));
-					const userType = 'UserType=General';
-
 					const cookieHeader = [
 						sessionIdCookie?.split(';')[0],
 						authCookie?.split(';')[0],
 						csrfCookie?.split(';')[0],
-						bpmLoaderCookie?.split(';')[0],
+						bpmLoader?.split(';')[0],
 						userType
 					].filter(Boolean).join('; ');
 					const csrfToken = csrfCookie?.split('=')[1]?.split(';')[0] || '';
-
 					const subpath = this.getNodeParameter('subpath', i) as string;
 					const id = this.getNodeParameter('id', i, '') as string;
 					const requestBody = this.getNodeParameter('body', i) as object;
-					let url = `${credentials.creatioUrl}/0/odata/${subpath}`;
+					let url = `${creatioUrl}/0/odata/${subpath}`;
 					if (id) {
-						url = `${credentials.creatioUrl}/0/odata/${subpath}(${id})`;
+						url = `${creatioUrl}/0/odata/${subpath}(${id})`;
 					}
-
 					response = await this.helpers.request({
 						method: 'PATCH',
 						url,
@@ -482,10 +403,8 @@ export class Creatiov2 implements INodeType {
 					break;
 				}
 			}
-
 			returnData.push(response);
 		}
-
 		return [this.helpers.returnJsonArray(returnData)];
 	}
 }
