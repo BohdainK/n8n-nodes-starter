@@ -7,7 +7,7 @@ export class Creatiov2Api implements ICredentialType {
 	documentationUrl = 'https://community.creatio.com';
 	properties: INodeProperties[] = [
 		{
-			displayName: 'Creatio tenant URL',
+			displayName: 'Creatio URL',
 			name: 'creatioUrl',
 			type: 'string',
 			default: '',

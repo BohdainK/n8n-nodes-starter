@@ -1,350 +1,491 @@
 import {
-	type IExecuteFunctions,
-	type IDataObject,
-	type ILoadOptionsFunctions,
-	type INodeExecutionData,
-	type INodeType,
-	type INodeTypeDescription,
-	//@ts-ignore
-	NodeConnectionTypes, NodeConnectionType,
+	INodeType,
+	INodeTypeDescription,
+	IExecuteFunctions,
+	NodeConnectionType,
+	ILoadOptionsFunctions,
+	NodeOperationError,
 } from 'n8n-workflow';
 
-import {
-	baserowApiRequest,
-	baserowApiRequestAllItems,
-	getJwtToken,
-	TableFieldMapper,
-	toOptions,
-} from './GenericFunctions';
-
-import { operationFields } from './OperationDescription';
-import type {
-	BaserowCredentials,
-	FieldsUiValues,
-	GetAllAdditionalOptions,
-	LoadedResource,
-	Operation,
-	Row,
-} from './types';
-
 export class Creatiov2 implements INodeType {
+	methods = {
+		loadOptions: {
+			async getODataEntities(this: ILoadOptionsFunctions) {
+				try {
+					const credentials = await this.getCredentials('creatiov2Api');
+					let creatioUrl = credentials.creatioUrl as string;
+					const username = credentials.username as string;
+					const password = credentials.password as string;
+
+					creatioUrl = creatioUrl.trim().replace(/\/$/, '');
+
+					// Authenticatie ------------------------------------------------------------------------- samenvoegen met auth code blokken!
+					let authResponse;
+					try {
+						authResponse = await this.helpers.request({
+							resolveWithFullResponse: true,
+							method: 'POST',
+							url: `${creatioUrl}/ServiceModel/AuthService.svc/Login`,
+							headers: {
+								Accept: 'application/json',
+								'Content-Type': 'application/json',
+								ForceUseSession: 'true',
+							},
+							body: {
+								UserName: username,
+								UserPassword: password,
+							},
+							json: true,
+							maxRedirects: 5,
+						});
+					} catch (error: any) {
+						console.error('Creatio login failed (getODataEntities):', {
+							status: error.response?.status,
+							headers: error.response?.headers,
+							body: error.response?.body,
+						});
+						throw new NodeOperationError(
+							this.getNode(),
+							`Failed to authenticate with Creatio: ${error.message}`,
+						);
+					}
+
+					const cookies = authResponse.headers['set-cookie'];
+					const authCookie = cookies.find((c: string) => c.startsWith('.ASPXAUTH='));
+					const csrfCookie = cookies.find((c: string) => c.startsWith('BPMCSRF='));
+					const cookieHeaderVal = [authCookie?.split(';')[0], csrfCookie?.split(';')[0]]
+						.filter(Boolean)
+						.join('; ');
+					const csrfTokenVal = csrfCookie?.split('=')[1] || '';
+
+					const metadataXml = await this.helpers.request({
+						method: 'GET',
+						url: `${creatioUrl}/0/odata/$metadata`,
+						headers: {
+							Accept: 'application/xml',
+							Cookie: cookieHeaderVal,
+							BPMCSRF: csrfTokenVal,
+						},
+					});
+
+					const entityNames: string[] = [];
+					const entityTypeRegex = /<EntityType Name="([^"]+)"/g;
+					let match;
+					while ((match = entityTypeRegex.exec(metadataXml)) !== null) {
+						entityNames.push(match[1]);
+					}
+
+					return entityNames.map((name) => ({
+						name,
+						value: name,
+					}));
+				} catch (error: any) {
+					throw new NodeOperationError(
+						this.getNode(),
+						`Failed to load OData entities: ${error.message}`,
+					);
+				}
+			},
+			async getODataEntityFields(this: ILoadOptionsFunctions) {
+				try {
+					const credentials = await this.getCredentials('creatiov2Api');
+					let creatioUrl = credentials.creatioUrl as string;
+					const username = credentials.username as string;
+					const password = credentials.password as string;
+
+					creatioUrl = creatioUrl.trim().replace(/\/$/, '');
+
+					// Authenticatie ------------------------------------------------------------------------- samenvoegen met auth code blokken!
+					let authResponse;
+					try {
+						authResponse = await this.helpers.request({
+							resolveWithFullResponse: true,
+							method: 'POST',
+							url: `${creatioUrl}/ServiceModel/AuthService.svc/Login`,
+							headers: {
+								Accept: 'application/json',
+								'Content-Type': 'application/json',
+								ForceUseSession: 'true',
+							},
+							body: {
+								UserName: username,
+								UserPassword: password,
+							},
+							json: true,
+							maxRedirects: 5,
+						});
+					} catch (error: any) {
+						console.error('Creatio login failed (getODataEntityFields):', {
+							status: error.response?.status,
+							headers: error.response?.headers,
+							body: error.response?.body,
+						});
+						throw new NodeOperationError(
+							this.getNode(),
+							`Failed to authenticate with Creatio: ${error.message}`,
+						);
+					}
+
+					const cookies = authResponse.headers['set-cookie'];
+					const authCookie = cookies.find((c: string) => c.startsWith('.ASPXAUTH='));
+					const csrfCookie = cookies.find((c: string) => c.startsWith('BPMCSRF='));
+					const cookieHeader = [authCookie?.split(';')[0], csrfCookie?.split(';')[0]]
+						.filter(Boolean)
+						.join('; ');
+					const csrfToken = csrfCookie?.split('=')[1] || '';
+
+					const subpath = this.getCurrentNodeParameter('subpath') as string;
+					if (!subpath) {
+						return [];
+					}
+
+					const metadataXml = await this.helpers.request({
+						method: 'GET',
+						url: `${creatioUrl}/0/odata/$metadata`,
+						headers: {
+							Accept: 'application/xml',
+							Cookie: cookieHeader,
+							BPMCSRF: csrfToken,
+						},
+					});
+
+					const entityRegex = new RegExp(`<EntityType Name="${subpath}"[\\s\\S]*?<\\/EntityType>`, 'g');
+					const entityMatch = entityRegex.exec(metadataXml);
+					if (!entityMatch) {
+						return [];
+					}
+					const entityXml = entityMatch[0];
+
+					const propertyRegex = /<Property Name="([^"]+)"/g;
+					const fields: { name: string; value: string }[] = [];
+					let match;
+					while ((match = propertyRegex.exec(entityXml)) !== null) {
+						fields.push({ name: match[1], value: match[1] });
+					}
+
+					return fields;
+				} catch (error: any) {
+					throw new NodeOperationError(
+						this.getNode(),
+						`Failed to load OData entity fields: ${error.message}`,
+					);
+				}
+			},
+		}
+	}
 	description: INodeTypeDescription = {
-		displayName: 'Creatiov2',
+		displayName: 'CreatioV2',
 		name: 'creatiov2',
 		icon: 'file:Creatio.svg',
-		group: ['output'],
+		group: ['transform'],
 		version: 1,
+		subtitle: '={{$parameter["operation"]}}',
 		description: 'Consume Creatio API',
-		subtitle: '={{$parameter["operation"] + ":" + $parameter["resource"]}}',
 		defaults: {
-			name: 'Creatiov2',
+			name: 'CreatioV2',
 		},
 		inputs: ['main'] as NodeConnectionType[],
 		outputs: ['main'] as NodeConnectionType[],
-		usableAsTool: true,
 		credentials: [
 			{
-				name: 'Creatiov2Api',
+				name: 'creatiov2Api',
 				required: true,
 			},
 		],
+		usableAsTool: true,
 		properties: [
-			{
-				displayName: 'Resource',
-				name: 'resource',
-				type: 'options',
-				noDataExpression: true,
-				options: [
-					{
-						name: 'Row',
-						value: 'row',
-					},
-				],
-				default: 'row',
-			},
 			{
 				displayName: 'Operation',
 				name: 'operation',
 				type: 'options',
 				noDataExpression: true,
-				displayOptions: {
-					show: {
-						resource: ['row'],
-					},
-				},
 				options: [
 					{
-						name: 'Create',
-						value: 'create',
-						description: 'Create a row',
-						action: 'Create a row',
+						name: 'GET',
+						description: 'Gets record',
+						value: 'GET',
+						action: 'Get one or more records',
 					},
 					{
-						name: 'Delete',
-						value: 'delete',
-						description: 'Delete a row',
-						action: 'Delete a row',
+						name: 'POST',
+						description: 'Create record',
+						value: 'POST',
+						action: 'Create a record',
 					},
 					{
-						name: 'Get',
-						value: 'get',
-						description: 'Retrieve a row',
-						action: 'Get a row',
-					},
-					{
-						name: 'Get Many',
-						value: 'getAll',
-						description: 'Retrieve many rows',
-						action: 'Get many rows',
-					},
-					{
-						name: 'Update',
-						value: 'update',
-						description: 'Update a row',
-						action: 'Update a row',
+						name: 'PUT',
+						description: 'Update record',
+						value: 'PUT',
+						action: 'Update a record',
 					},
 				],
-				default: 'getAll',
+				default: 'GET',
 			},
-			...operationFields,
+			{
+				displayName: 'Subpath Name or ID',
+				name: 'subpath',
+				type: 'options',
+				default: '',
+				description: 'The OData entity to target (e.g., Account, Contact). Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+				required: true,
+				typeOptions: {
+					loadOptionsMethod: 'getODataEntities',
+				},
+				displayOptions: {
+					show: {
+						operation: ['GET', 'POST', 'PUT'],
+					},
+				},
+			},
+			{
+				displayName: 'Select Field Names or IDs',
+				name: 'select',
+				type: 'multiOptions',
+				default: [],
+				description: 'Select one or more fields to include in the result. Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+				typeOptions: {
+					loadOptionsMethod: 'getODataEntityFields',
+					loadOptionsDependsOn: ["subpath"],
+				},
+				displayOptions: {
+					show: {
+						operation: ['GET'],
+					},
+				},
+			},
+			{
+				displayName: 'Top',
+				name: 'top',
+				type: 'number',
+				default: 10,
+				description: 'Number of records to return',
+				displayOptions: {
+					show: {
+						operation: ['GET'],
+					},
+				},
+			},
+			{
+				displayName: 'Filter',
+				name: 'filter',
+				type: 'string',
+				default: '',
+				description: 'OData filter expression (e.g., "Name eq \'John\'")',
+				displayOptions: {
+					show: {
+						operation: ['GET'],
+					},
+				},
+			},
+			{
+				displayName: 'Expand',
+				name: 'expand',
+				type: 'string',
+				default: '',
+				description: 'Comma-separated list of related entities to expand',
+				displayOptions: {
+					show: {
+						operation: ['GET'],
+					},
+				},
+			},
+			{
+				displayName: 'ID',
+				name: 'id',
+				type: 'string',
+				default: '',
+				description: 'Resource ID',
+				displayOptions: {
+					show: {
+						operation: ['PUT'],
+					},
+				},
+			},
+			{
+				displayName: 'Body',
+				name: 'body',
+				type: 'json',
+				default: '',
+				description: 'The JSON body to send',
+				required: true,
+				displayOptions: {
+					show: {
+						operation: ['POST', 'PUT'],
+					},
+				},
+			},
 		],
 	};
 
-	methods = {
-		loadOptions: {
-			async getDatabaseIds(this: ILoadOptionsFunctions) {
-				const credentials = await this.getCredentials('creatioApi');
-				const jwtToken = await getJwtToken.call(this, credentials);
-				const endpoint = '/api/applications/';
-				const databases = (await baserowApiRequest.call(
-					this,
-					'GET',
-					endpoint,
-					jwtToken,
-				)) as LoadedResource[];
-				// Baserow has different types of applications, we only want the databases
-				// https://api.baserow.io/api/redoc/#tag/Applications/operation/list_all_applications
-				return toOptions(databases.filter((database) => database.type === 'database'));
-			},
-
-			async getTableIds(this: ILoadOptionsFunctions) {
-				const credentials = await this.getCredentials<BaserowCredentials>('baserowApi');
-				const jwtToken = await getJwtToken.call(this, credentials);
-				const databaseId = this.getNodeParameter('databaseId', 0) as string;
-				const endpoint = `/api/database/tables/database/${databaseId}/`;
-				const tables = (await baserowApiRequest.call(
-					this,
-					'GET',
-					endpoint,
-					jwtToken,
-				)) as LoadedResource[];
-				return toOptions(tables);
-			},
-
-			async getTableFields(this: ILoadOptionsFunctions) {
-				const credentials = await this.getCredentials<BaserowCredentials>('baserowApi');
-				const jwtToken = await getJwtToken.call(this, credentials);
-				const tableId = this.getNodeParameter('tableId', 0) as string;
-				const endpoint = `/api/database/fields/table/${tableId}/`;
-				const fields = (await baserowApiRequest.call(
-					this,
-					'GET',
-					endpoint,
-					jwtToken,
-				)) as LoadedResource[];
-				return toOptions(fields);
-			},
-		},
-	};
-
-	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
+	async execute(this: IExecuteFunctions) {
 		const items = this.getInputData();
-		const mapper = new TableFieldMapper();
-		const returnData: INodeExecutionData[] = [];
-		const operation = this.getNodeParameter('operation', 0) as Operation;
+		const returnData = [];
 
-		const tableId = this.getNodeParameter('tableId', 0) as string;
-		const credentials = await this.getCredentials<BaserowCredentials>('baserowApi');
-		const jwtToken = await getJwtToken.call(this, credentials);
-		const fields = await mapper.getTableFields.call(this, tableId, jwtToken);
-		mapper.createMappings(fields);
 
 		for (let i = 0; i < items.length; i++) {
+			const credentials = await this.getCredentials('creatiov2Api');
+			const operation = this.getNodeParameter('operation', i) as string;
+
+			// Authenticatie ------------------------------------------------------------------------- samenvoegen met auth code blokken!
+			let authResponse;
 			try {
-				if (operation === 'getAll') {
-					// ----------------------------------
-					//             getAll
-					// ----------------------------------
-
-					// https://api.baserow.io/api/redoc/#operation/list_database_table_rows
-
-					const { order, filters, filterType, search } = this.getNodeParameter(
-						'additionalOptions',
-						i,
-					) as GetAllAdditionalOptions;
-
-					const qs: IDataObject = {};
-
-					if (order?.fields) {
-						qs.order_by = order.fields
-							.map(({ field, direction }) => `${direction}${mapper.setField(field)}`)
-							.join(',');
-					}
-
-					if (filters?.fields) {
-						filters.fields.forEach(({ field, operator, value }) => {
-							qs[`filter__field_${mapper.setField(field)}__${operator}`] = value;
-						});
-					}
-
-					if (filterType) {
-						qs.filter_type = filterType;
-					}
-
-					if (search) {
-						qs.search = search;
-					}
-
-					const endpoint = `/api/database/rows/table/${tableId}/`;
-					const rows = (await baserowApiRequestAllItems.call(
-						this,
-						'GET',
-						endpoint,
-						jwtToken,
-						{},
-						qs,
-					)) as Row[];
-
-					rows.forEach((row) => mapper.idsToNames(row));
-					const executionData = this.helpers.constructExecutionMetaData(
-						this.helpers.returnJsonArray(rows),
-						{ itemData: { item: i } },
-					);
-					returnData.push(...executionData);
-				} else if (operation === 'get') {
-					// ----------------------------------
-					//             get
-					// ----------------------------------
-
-					// https://api.baserow.io/api/redoc/#operation/get_database_table_row
-
-					const rowId = this.getNodeParameter('rowId', i) as string;
-					const endpoint = `/api/database/rows/table/${tableId}/${rowId}/`;
-					const row = await baserowApiRequest.call(this, 'GET', endpoint, jwtToken);
-
-					mapper.idsToNames(row as Row);
-					const executionData = this.helpers.constructExecutionMetaData(
-						this.helpers.returnJsonArray(row as Row),
-						{ itemData: { item: i } },
-					);
-					returnData.push(...executionData);
-				} else if (operation === 'create') {
-					// ----------------------------------
-					//             create
-					// ----------------------------------
-
-					// https://api.baserow.io/api/redoc/#operation/create_database_table_row
-
-					const body: IDataObject = {};
-
-					const dataToSend = this.getNodeParameter('dataToSend', 0) as
-						| 'defineBelow'
-						| 'autoMapInputData';
-
-					if (dataToSend === 'autoMapInputData') {
-						const incomingKeys = Object.keys(items[i].json);
-						const rawInputsToIgnore = this.getNodeParameter('inputsToIgnore', i) as string;
-						const inputDataToIgnore = rawInputsToIgnore.split(',').map((c) => c.trim());
-
-						for (const key of incomingKeys) {
-							if (inputDataToIgnore.includes(key)) continue;
-							body[key] = items[i].json[key];
-							mapper.namesToIds(body);
-						}
-					} else {
-						const fieldsUi = this.getNodeParameter('fieldsUi.fieldValues', i, []) as FieldsUiValues;
-						for (const field of fieldsUi) {
-							body[`field_${field.fieldId}`] = field.fieldValue;
-						}
-					}
-
-					const endpoint = `/api/database/rows/table/${tableId}/`;
-					const createdRow = await baserowApiRequest.call(this, 'POST', endpoint, jwtToken, body);
-
-					mapper.idsToNames(createdRow as Row);
-					const executionData = this.helpers.constructExecutionMetaData(
-						this.helpers.returnJsonArray(createdRow as Row),
-						{ itemData: { item: i } },
-					);
-					returnData.push(...executionData);
-				} else if (operation === 'update') {
-					// ----------------------------------
-					//             update
-					// ----------------------------------
-
-					// https://api.baserow.io/api/redoc/#operation/update_database_table_row
-
-					const rowId = this.getNodeParameter('rowId', i) as string;
-
-					const body: IDataObject = {};
-
-					const dataToSend = this.getNodeParameter('dataToSend', 0) as
-						| 'defineBelow'
-						| 'autoMapInputData';
-
-					if (dataToSend === 'autoMapInputData') {
-						const incomingKeys = Object.keys(items[i].json);
-						const rawInputsToIgnore = this.getNodeParameter('inputsToIgnore', i) as string;
-						const inputsToIgnore = rawInputsToIgnore.split(',').map((c) => c.trim());
-
-						for (const key of incomingKeys) {
-							if (inputsToIgnore.includes(key)) continue;
-							body[key] = items[i].json[key];
-							mapper.namesToIds(body);
-						}
-					} else {
-						const fieldsUi = this.getNodeParameter('fieldsUi.fieldValues', i, []) as FieldsUiValues;
-						for (const field of fieldsUi) {
-							body[`field_${field.fieldId}`] = field.fieldValue;
-						}
-					}
-
-					const endpoint = `/api/database/rows/table/${tableId}/${rowId}/`;
-					const updatedRow = await baserowApiRequest.call(this, 'PATCH', endpoint, jwtToken, body);
-
-					mapper.idsToNames(updatedRow as Row);
-					const executionData = this.helpers.constructExecutionMetaData(
-						this.helpers.returnJsonArray(updatedRow as Row),
-						{ itemData: { item: i } },
-					);
-					returnData.push(...executionData);
-				} else if (operation === 'delete') {
-					// ----------------------------------
-					//             delete
-					// ----------------------------------
-
-					// https://api.baserow.io/api/redoc/#operation/delete_database_table_row
-
-					const rowId = this.getNodeParameter('rowId', i) as string;
-
-					const endpoint = `/api/database/rows/table/${tableId}/${rowId}/`;
-					await baserowApiRequest.call(this, 'DELETE', endpoint, jwtToken);
-
-					const executionData = this.helpers.constructExecutionMetaData(
-						[{ json: { success: true } }],
-						{ itemData: { item: i } },
-					);
-					returnData.push(...executionData);
-				}
-			} catch (error) {
-				if (this.continueOnFail()) {
-					returnData.push({ error: error.message, json: {}, itemIndex: i });
-					continue;
-				}
-				throw error;
+				authResponse = await this.helpers.request({
+					resolveWithFullResponse: true,
+					method: 'POST',
+					url: `${credentials.creatioUrl}/ServiceModel/AuthService.svc/Login`,
+					headers: {
+						Accept: 'application/json',
+						'Content-Type': 'application/json',
+						ForceUseSession: 'true',
+					},
+					body: {
+						UserName: credentials.username,
+						UserPassword: credentials.password,
+					},
+					json: true,
+					maxRedirects: 5,
+				});
+			} catch (error: any) {
+				console.error('Creatio login failed (execute):', {
+					status: error.response?.status,
+					headers: error.response?.headers,
+					body: error.response?.body,
+				});
+				throw new NodeOperationError(
+					this.getNode(),
+					`Failed to authenticate with Creatio: ${error.message}`,
+				);
 			}
+
+			const cookies = authResponse.headers['set-cookie'];
+
+			const bpmLoader = cookies.find((c: string) => c.startsWith('BPMLOADER='));
+			const authCookie = cookies.find((c: string) => c.startsWith('.ASPXAUTH='));
+			const csrfCookie = cookies.find((c: string) => c.startsWith('BPMCSRF='));
+			const userType = 'UserType=General';
+			const cookieHeader = [authCookie?.split(';')[0], csrfCookie?.split(';')[0], bpmLoader?.split(';')[0], userType]
+				.filter(Boolean)
+				.join('; ');
+			const csrfToken = csrfCookie?.split('=')[1];
+
+			let response;
+			switch (operation) {
+				case 'GET': {
+					const subpath = this.getNodeParameter('subpath', i) as string;
+					const select = this.getNodeParameter('select', i) as string[];
+					const top = this.getNodeParameter('top', i) as number;
+					const filter = this.getNodeParameter('filter', i) as string;
+					const expand = this.getNodeParameter('expand', i) as string;
+
+					let url = `${credentials.creatioUrl}/0/odata/${subpath}`;
+					const queryParams: string[] = [];
+
+					if (select && select.length > 0) {
+						queryParams.push(`$select=${encodeURIComponent(select.join(','))}`);
+					}
+					if (top) {
+						queryParams.push(`$top=${top}`);
+					}
+					if (filter) {
+						queryParams.push(`$filter=${encodeURIComponent(filter)}`);
+					}
+					if (expand) {
+						queryParams.push(`$expand=${encodeURIComponent(expand)}`);
+					}
+					if (queryParams.length > 0) {
+						url += `?${queryParams.join('&')}`;
+					}
+
+					response = await this.helpers.request({
+						method: 'GET',
+						url,
+						headers: {
+							Accept: 'application/json',
+							'Content-Type': 'application/json',
+							Cookie: cookieHeader,
+							BPMCSRF: csrfToken,
+						},
+						json: true,
+					});
+					break;
+				}
+				case 'POST': {
+					const sessionIdCookie = cookies.find((c: string) => c.startsWith('BPMSESSIONID='));
+					const authCookie = cookies.find((c: string) => c.startsWith('.ASPXAUTH='));
+					const csrfCookie = cookies.find((c: string) => c.startsWith('BPMCSRF='));
+					const bpmLoaderCookie = cookies.find((c: string) => c.startsWith('BPMLOADER='));
+					const userType = 'UserType=General';
+
+					const cookieHeader = [
+						sessionIdCookie?.split(';')[0],
+						authCookie?.split(';')[0],
+						csrfCookie?.split(';')[0],
+						bpmLoaderCookie?.split(';')[0],
+						userType
+					].filter(Boolean).join('; ');
+					const csrfToken = csrfCookie?.split('=')[1]?.split(';')[0] || '';
+
+					const subpath = this.getNodeParameter('subpath', i) as string;
+					const requestBody = this.getNodeParameter('body', i) as object;
+					let url = `${credentials.creatioUrl}/0/odata/${subpath}`;
+
+					response = await this.helpers.request({
+						method: 'POST',
+						url,
+						headers: {
+							Accept: '*/*',
+							'Content-Type': 'application/json',
+							Cookie: cookieHeader,
+							BPMCSRF: csrfToken,
+						},
+						body: requestBody,
+						json: true,
+					});
+					break;
+				}
+				case 'PUT': {
+					const sessionIdCookie = cookies.find((c: string) => c.startsWith('BPMSESSIONID='));
+					const authCookie = cookies.find((c: string) => c.startsWith('.ASPXAUTH='));
+					const csrfCookie = cookies.find((c: string) => c.startsWith('BPMCSRF='));
+					const bpmLoaderCookie = cookies.find((c: string) => c.startsWith('BPMLOADER='));
+					const userType = 'UserType=General';
+
+					const cookieHeader = [
+						sessionIdCookie?.split(';')[0],
+						authCookie?.split(';')[0],
+						csrfCookie?.split(';')[0],
+						bpmLoaderCookie?.split(';')[0],
+						userType
+					].filter(Boolean).join('; ');
+					const csrfToken = csrfCookie?.split('=')[1]?.split(';')[0] || '';
+
+					const subpath = this.getNodeParameter('subpath', i) as string;
+					const id = this.getNodeParameter('id', i, '') as string;
+					const requestBody = this.getNodeParameter('body', i) as object;
+					let url = `${credentials.creatioUrl}/0/odata/${subpath}`;
+					if (id) {
+						url = `${credentials.creatioUrl}/0/odata/${subpath}(${id})`;
+					}
+
+					response = await this.helpers.request({
+						method: 'PATCH',
+						url,
+						headers: {
+							Accept: '*/*',
+							'Content-Type': 'application/json',
+							Cookie: cookieHeader,
+							BPMCSRF: csrfToken,
+						},
+						body: requestBody,
+						json: true,
+					});
+					break;
+				}
+			}
+
+			returnData.push(response);
 		}
 
-		return [returnData];
+		return [this.helpers.returnJsonArray(returnData)];
 	}
 }
