@@ -1,29 +1,13 @@
-# n8n Community Nodes Documentation
+# Creatio Node
 
-[![Publish to npm](https://github.com/BohdainK/n8n-node-starter/actions/workflows/npm-publish.yml/badge.svg)](https://github.com/BohdainK/n8n-node-starter/actions/workflows/npm-publish.yml) [npm source](https://www.npmjs.com/package/n8n-nodes-starter) 
-
-This document covers three n8n community nodes that integrate with different platforms: Notion, Google Slides, and Midjourney. [n8n](https://n8n.io/) is a [fair-code licensed](https://docs.n8n.io/reference/license/) workflow automation platform.
-
+This node allows you connect N8N to Creatio, the popular Agentic Nocode Platform with an excellent CRM. 
 ## Table of Contents
 
 - [Installation](#installation)
-- [Sparkwise Node](#creatio-node)
+- [Features](#features)
+- [Usage](#usage)
+- [Authentication](#authentication)
 - [Resources](#resources)
-
-
-<!-- to finish -->
-<!-- 
-
-to create good documentation in cursor add node attributes + readme in context then use this prompt
-
-```
-Please adapt the readme to better match the tasks this node can perform. I want to make my readme more digestible for people who use the project.
-
-Give me only the snippets to copy for the correct section + update the menu.
-```
-
--->
-
 ---
 
 ## Installation
@@ -32,13 +16,39 @@ Follow the [installation guide](https://docs.n8n.io/integrations/community-nodes
 
 ---
 
-## Creatio Node
-
-This node allows you connect N8N to Creatio, the popular Agentic Nocode Platform with an excellent CRM. 
-
 ### Features
 
-- Create, Read, Update & Delete data on entities in Creatio
+- Connect n8n to your Creatio instance
+- Create, read, update, and delete records in any Creatio entity
+- Select entities and fields dynamically
+- Execute custom methods on Creatio models
+- Store and manage multiple Creatio credentials
+
+### Usage
+
+#### GET
+- Choose your Creatio subPath and target fields from the dropdown menus or add manually using an Expression
+- Use the optional Filter, Top and Expand filters
+
+#### POST
+- Choose your Creatio subPath from the dropdown menu or add manually using an Expression
+- Enter JSON with the data you want to add
+
+#### PATCH
+- Choose your Creatio subPath from the dropdown menu or add manually using an Expression
+- Enter ID of record to update
+- Enter JSON with the data you want to update
+
+
+**Example use cases:**
+- Add new leads or contacts automatically
+- Sync data between Creatio and other platforms
+- Update records based on external triggers
+- Retrieve and process Creatio data for reporting or AI agents
+
+### Authentication
+
+Authentication is required. Store your Creatio API credentials securely in n8n before using the node.
 
 ### Input
 
@@ -52,15 +62,9 @@ The node accepts:
 
 - Output from Creatio
 
-### Example Usage
-
-Perfect for:
-- Adding Leads
-- Reading data for AI Agents
-
 ### Authentication
 
-Required
+All fields required
 
 ## Resources
 
