@@ -15,6 +15,7 @@ export class Creatio implements INodeType {
 		const password = credentials.password as string;
 		creatioUrl = creatioUrl.trim().replace(/\/$/, '');
 		let authResponse;
+
 		try {
 			authResponse = await context.helpers.request({
 				resolveWithFullResponse: true,
